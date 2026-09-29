@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b4f4a">
+<title>Bitácora de Vuelo UAS</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<link rel="stylesheet" href="lib/draw/leaflet.draw.css">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <h1 id="title">Bitácora de vuelo</h1>
+  <span id="net" class="net" title="Estado de conexión">en línea</span>
+</header>
+
+<main>
+  <!-- ============ BITÁCORA (lista) ============ -->
+  <section id="v-vuelos" class="view">
+    <div class="bar"><button class="btn primary" id="btnNewFlight">+ Nuevo vuelo</button></div>
+    <div id="totals" class="statgrid"></div>
+    <div id="flightList" class="cards"></div>
+    <div class="row wrap pad">
+      <button class="btn" id="btnSummaryPdf">Resumen en PDF</button>
+      <button class="btn" id="btnCsv">Exportar CSV</button>
+    </div>
+  </section>
+
+  <!-- ============ REGISTRO DE VUELO ============ -->
+  <section id="v-vuelo" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="flight-back">← Volver</button>
+      <button class="btn" id="btnSaveFlightPdf">Guardar y PDF</button>
+      <button class="btn primary" id="btnSaveFlight">Guardar</button>
+    </div>
+
+    <div class="panel">
+      <h2>Piloto y aeronave</h2>
+      <div class="form">
+        <label class="fld wide"><span>Piloto *</span><select id="f-pilot"></select></label>
+        <div class="info wide" id="f-pilotInfo"></div>
+        <label class="fld wide"><span>Aeronave *</span><select id="f-aircraft"></select></label>
+        <div class="info wide" id="f-aircraftInfo"></div>
+      </div>
+      <div class="warn hidden" id="f-warn"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Operación</h2>
+      <div class="form">
+        <label class="fld wide"><span>Inicio de la operación (despegue) *</span>
+          <div class="inline"><input type="datetime-local" id="f-inicio"><button type="button" class="btn small" data-now="f-inicio">Ahora</button></div></label>
+        <label class="fld wide"><span>Fin de la operación (aterrizaje) *</span>
+          <div class="inline"><input type="datetime-local" id="f-fin"><button type="button" class="btn small" data-now="f-fin">Ahora</button></div></label>
+        <label class="fld wide"><span>Tiempo total de vuelo</span><input id="f-total" readonly value="--:--"></label>
+        <label class="fld wide"><span>Lugar / proyecto</span><input id="f-sitio" placeholder="Ej. Lote Cumbayá - Cliente X"></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Característica del vuelo</h2>
+      <div class="chips">
+        <label class="chip"><input type="radio" name="tipo" value="Vuelo Manual"><span>Vuelo Manual</span></label>
+        <label class="chip"><input type="radio" name="tipo" value="Vuelo Autónomo"><span>Vuelo Autónomo</span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Condiciones de operación</h2>
+      <div class="grp">Condiciones de luz</div>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="luz" value="Nublado"><span>Nublado</span></label>
+        <label class="chip"><input type="checkbox" name="luz" value="Soleado"><span>Soleado</span></label>
+      </div>
+      <div class="grp">Viento</div>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="viento" value="Presencia de viento"><span>Presencia de viento</span></label>
+        <label class="chip"><input type="checkbox" name="viento" value="Sin presencia de viento"><span>Sin presencia de viento</span></label>
+      </div>
+      <div class="grp">Entorno</div>
+      <div class="chips">
+        <label class="chip"><input type="checkbox" name="entorno" value="Urbano"><span>Urbano</span></label>
+        <label class="chip"><input type="checkbox" name="entorno" value="Rural"><span>Rural</span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Perímetro de vuelo</h2>
+      <p class="hint">Dibuja el polígono con las herramientas del mapa (arriba a la izquierda) o importa un GeoJSON / KML de QGIS. Al guardar se crea una imagen del mapa que se usa en el PDF.</p>
+      <div id="map" class="map"></div>
+      <div class="statgrid" id="mapStats"></div>
+      <div class="row wrap">
+        <button class="btn" id="btnLocate">Mi ubicación</button>
+        <label class="btn filebtn">Importar GeoJSON / KML<input type="file" id="fileImport" accept=".geojson,.json,.kml,application/json,application/vnd.google-earth.kml+xml"></label>
+        <button class="btn" id="btnExpGeo">Exportar GeoJSON</button>
+        <button class="btn" id="btnExpKml">Exportar KML</button>
+      </div>
+      <div class="row wrap">
+        <button class="btn" id="btnPrefetch">Precargar mapa de la zona (offline)</button>
+        <span id="prefetchMsg" class="hint"></span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Observaciones</h2>
+      <label class="fld"><span>Novedades, incidentes o notas (opcional)</span><textarea id="f-obs" rows="3"></textarea></label>
+    </div>
+  </section>
+
+  <!-- ============ PILOTOS ============ -->
+  <section id="v-pilotos" class="view hidden">
+    <div class="bar"><button class="btn primary" id="btnNewPilot">+ Nuevo piloto</button></div>
+    <div id="pilotList" class="cards"></div>
+  </section>
+
+  <section id="v-piloto" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="pilot-back">← Volver</button>
+      <button class="btn primary" id="btnSavePilot">Guardar piloto</button>
+    </div>
+    <div class="panel">
+      <h2>Configuración de piloto de drone</h2>
+      <div class="form">
+        <label class="fld wide"><span>Nombre completo *</span><input id="pi-nombre" autocomplete="off"></label>
+        <label class="fld wide"><span>Cédula *</span><input id="pi-cedula" inputmode="numeric" maxlength="13" autocomplete="off"></label>
+        <label class="fld wide"><span>Autorización No. * (letras y números)</span><input id="pi-autorizacion" autocapitalize="characters" autocomplete="off"></label>
+        <label class="fld"><span>Fecha de otorgamiento *</span><input type="date" id="pi-otorgamiento"></label>
+        <label class="fld"><span>Fecha de expiración *</span><input type="date" id="pi-expiracion"></label>
+      </div>
+      <label class="sigwrap"><span>Firma del piloto</span>
+        <canvas id="sigPilot" class="sig" width="600" height="180"></canvas>
+      </label>
+      <div class="row"><button class="btn" id="sigPilotClear" type="button">Borrar firma</button></div>
+    </div>
+  </section>
+
+  <!-- ============ AERONAVES ============ -->
+  <section id="v-aeronaves" class="view hidden">
+    <div class="bar"><button class="btn primary" id="btnNewAircraft">+ Nueva aeronave</button></div>
+    <div id="aircraftList" class="cards"></div>
+  </section>
+
+  <section id="v-aeronave" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="aircraft-back">← Volver</button>
+      <button class="btn primary" id="btnSaveAircraft">Guardar aeronave</button>
+    </div>
+    <div class="panel">
+      <h2>Configuración de aeronave</h2>
+      <div class="form">
+        <label class="fld wide"><span>Nombre *</span><input id="ac-nombre" placeholder="Ej. Mavic 3E - Equipo 1" autocomplete="off"></label>
+        <label class="fld"><span>Marca *</span><input id="ac-marca" autocomplete="off"></label>
+        <label class="fld"><span>Modelo *</span><input id="ac-modelo" autocomplete="off"></label>
+        <label class="fld wide"><span>Nro de serie *</span><input id="ac-serie" autocapitalize="characters" autocomplete="off"></label>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESPALDO Y ESTADO ============ -->
+  <section id="v-respaldo" class="view hidden">
+    <div class="panel">
+      <h2>Estado de la app</h2>
+      <p id="offlineState" class="hint"></p>
+      <p class="hint" id="storageInfo"></p>
+    </div>
+    <div class="panel">
+      <h2>Respaldo de datos</h2>
+      <p class="hint">Pilotos, aeronaves y vuelos se guardan solo en este teléfono. Haz un respaldo con frecuencia y guárdalo en Drive, correo o tu computador.</p>
+      <div class="row wrap">
+        <button class="btn primary" id="btnBackup">Exportar respaldo (.json)</button>
+        <label class="btn filebtn">Importar respaldo<input type="file" id="fileRestore" accept=".json,application/json"></label>
+      </div>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="vuelos" class="on">Bitácora</button>
+  <button data-tab="pilotos">Pilotos</button>
+  <button data-tab="aeronaves">Aeronaves</button>
+  <button data-tab="respaldo">Respaldo</button>
+</nav>
+<div id="toast" class="toast hidden"></div>
+<div id="busy" class="busy hidden"><div>Procesando…</div></div>
+
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="lib/draw/leaflet.draw.js"></script>
+<script src="lib/jspdf/jspdf.umd.min.js"></script>
+<script src="js/db.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/mapimg.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
