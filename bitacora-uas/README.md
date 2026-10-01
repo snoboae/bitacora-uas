@@ -16,7 +16,7 @@ Aplicación web instalable para llevar la **bitácora del piloto UAS** (DGAC Ecu
    - **Guardar** abre la ficha del vuelo, desde donde puedes Descargar PDF (con mapa, vértices en WGS84 y UTM, y firma), Compartir, exportar GeoJSON, Editar, Duplicar o Eliminar.
 4. **Respaldo**: exporta / importa todos los datos en un archivo `.json`.
 
-Otras salidas: resumen en PDF y CSV (separador `;`, con lat/lon del centroide) filtrables por mes, y **Exportar para SIG**: GeoJSON solo con los polígonos y los datos del vuelo. También aviso de traslape de horarios, recordatorio de respaldo (30 días) y aviso de nueva versión. El botón **Duplicar** copia piloto, aeronave, lugar y perímetro de un vuelo anterior (útil para varios vuelos en el mismo predio).
+Otras salidas: resumen en PDF y CSV (separador `;`, con lat/lon del centroide) filtrables por mes, y **Exportar para SIG**: GeoJSON solo con los polígonos y los datos del vuelo. También aviso de traslape de horarios, recordatorio de respaldo (cada 7 días) y aviso de nueva versión. El botón **Duplicar** copia piloto, aeronave, lugar y perímetro de un vuelo anterior (útil para varios vuelos en el mismo predio).
 
 ## Qué va a GitHub y qué queda en el teléfono
 

@@ -22,12 +22,29 @@
   }
   function busy(on, msg) { $('busy').classList.toggle('hidden', !on); if (msg) $('busy').firstElementChild.textContent = msg; }
 
-  function download(content, filename, mime) {
-    const blob = content instanceof Blob ? content : new Blob([content], { type: mime || 'text/plain' });
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function anchorDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+  }
+  /* Entrega un archivo al usuario. En iPhone usa el menú Compartir (Guardar en Archivos, AirDrop, WhatsApp...),
+     porque la descarga directa dentro de la app instalada puede dejar el archivo abierto sin botón para volver.
+     En Android y computadora usa la descarga normal. Devuelve true si el archivo se entregó. */
+  async function download(content, filename, mime) {
+    const blob = content instanceof Blob ? content : new Blob([content], { type: mime || 'text/plain' });
+    if (isIOS && navigator.canShare && navigator.share) {
+      const shareType = /geo\+json|kml/.test(mime || '') ? 'application/json' : (blob.type || mime);
+      try {
+        const file = new File([blob], filename, { type: shareType });
+        if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: filename }); return true; }
+      } catch (e) {
+        if (e && e.name === 'AbortError') return false; // el usuario cerró el menú
+      }
+    }
+    anchorDownload(blob, filename);
+    return true;
   }
 
   /* Cédula ecuatoriana: 10 dígitos, provincia 01-24 o 30, tercer dígito < 6, dígito verificador módulo 10. */
@@ -317,7 +334,7 @@
       if (!S.lastBackup) msg = 'Aún no has hecho un respaldo de tu bitácora.';
       else {
         const dias = Math.floor((Date.now() - new Date(S.lastBackup).getTime()) / 86400000);
-        if (dias >= 30) msg = 'Hace ' + dias + ' días que no haces un respaldo de tu bitácora.';
+        if (dias >= 7) msg = 'Hace ' + dias + ' días que no haces un respaldo de tu bitácora.';
       }
     }
     if (!msg) { box.classList.add('hidden'); box.innerHTML = ''; return; }
@@ -483,7 +500,7 @@
     return { doc: PDF.flightDoc(f), name: 'Bitacora_' + (f.numLabel || 'vuelo') + '_' + (f.inicio || '').slice(0, 10) + '.pdf' };
   }
   function pdfNow(f) {
-    try { const { doc, name } = flightPdf(f); doc.save(name); toast('PDF generado: ' + name); }
+    try { const { doc, name } = flightPdf(f); download(doc.output('blob'), name, 'application/pdf'); }
     catch (e) { console.error(e); toast('No se pudo generar el PDF: ' + e.message, 6000); }
   }
   async function sharePdf(f) {
@@ -491,7 +508,7 @@
       const { doc, name } = flightPdf(f);
       const file = new File([doc.output('blob')], name, { type: 'application/pdf' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });
-      else doc.save(name);
+      else download(doc.output('blob'), name, 'application/pdf');
     } catch (e) { if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message, 5000); }
   }
 
@@ -545,7 +562,7 @@
   function summaryPdf() {
     const list = filteredFlights();
     if (!list.length) { toast('No hay vuelos para el resumen.'); return; }
-    try { PDF.summaryDoc(list, S.period ? monthLabel(S.period) : '').save('Resumen_bitacora_UAS' + periodTag() + '_' + todayStr() + '.pdf'); }
+    try { download(PDF.summaryDoc(list, S.period ? monthLabel(S.period) : '').output('blob'), 'Resumen_bitacora_UAS' + periodTag() + '_' + todayStr() + '.pdf', 'application/pdf'); }
     catch (e) { console.error(e); toast('Error al generar el resumen: ' + e.message, 6000); }
   }
 
@@ -574,7 +591,8 @@
 
   async function backup() {
     const data = { app: 'bitacora-uas', version: 2, exportedAt: new Date().toISOString(), pilots: S.pilots, aircraft: S.aircraft, flights: S.flights, seq: await DB.kvGet('seq', 0) };
-    download(JSON.stringify(data), 'respaldo_bitacora_uas_' + todayStr() + '.json', 'application/json');
+    const entregado = await download(JSON.stringify(data), 'respaldo_bitacora_uas_' + todayStr() + '.json', 'application/json');
+    if (!entregado) return;
     S.lastBackup = new Date().toISOString();
     await DB.kvSet('lastBackup', S.lastBackup);
     renderBackupBanner(); renderStatus();
@@ -644,7 +662,7 @@
         if (confirm('¿Eliminar este registro de la bitácora? Esta acción no se puede deshacer.')) { await DB.del('flights', id); await loadAll(); S.detailId = null; goTab('vuelos'); toast('Registro eliminado.'); }
         break;
       case 'backup-now': await backup(); break;
-      case 'backup-later': S.backupSnooze = Date.now() + 7 * 86400000; await DB.kvSet('backupSnooze', S.backupSnooze); renderBackupBanner(); break;
+      case 'backup-later': S.backupSnooze = Date.now() + 3 * 86400000; await DB.kvSet('backupSnooze', S.backupSnooze); renderBackupBanner(); break;
       case 'pilot-back': goTab('pilotos'); break;
       case 'pilot-edit': openPilot(id); break;
       case 'pilot-del':

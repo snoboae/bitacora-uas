@@ -1,7 +1,7 @@
 /* Service worker: la app funciona sin conexión.
    - Archivos de la app: caché con actualización en segundo plano.
    - Teselas de mapa: caché con límite (las que ya viste o precargaste). */
-const VERSION = 'v2e3b262e';
+const VERSION = 'v60803cb9';
 const APP_CACHE = 'bv-app-' + VERSION;
 const TILE_CACHE = 'bv-tiles-v1';
 const MAX_TILES = 2500;
@@ -37,7 +37,7 @@ const APP_FILES = [
 const TILE_HOSTS = ['server.arcgisonline.com', 'tile.openstreetmap.org'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(APP_CACHE).then((c) => c.addAll(APP_FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(APP_CACHE).then((c) => Promise.all(APP_FILES.map((u) => fetch(new Request(u, { cache: 'reload' })).then((r) => { if (!r.ok) throw new Error(u + ' ' + r.status); return c.put(u, r); })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
