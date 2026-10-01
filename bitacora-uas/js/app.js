@@ -42,11 +42,11 @@
   }
 
   /* ---------- estado ---------- */
-  const S = { pilots: [], aircraft: [], flights: [], tab: 'vuelos', flight: null, pilot: null, ac: null, ring: [], baseLayer: 'esri', map: null, drawn: null, sigPilot: null, locMark: null };
+  const S = { pilots: [], aircraft: [], flights: [], tab: 'vuelos', flight: null, pilot: null, ac: null, ring: [], baseLayer: 'esri', map: null, drawn: null, sigPilot: null, locMark: null, detailId: null, period: '', lastBackup: '', backupSnooze: 0 };
 
   /* ---------- navegación ---------- */
-  const TITLES = { vuelos: 'Bitácora de vuelo', vuelo: 'Registro de vuelo', pilotos: 'Pilotos', piloto: 'Piloto', aeronaves: 'Aeronaves', aeronave: 'Aeronave', respaldo: 'Respaldo y estado' };
-  const TAB_OF = { vuelos: 'vuelos', vuelo: 'vuelos', pilotos: 'pilotos', piloto: 'pilotos', aeronaves: 'aeronaves', aeronave: 'aeronaves', respaldo: 'respaldo' };
+  const TITLES = { vuelos: 'Bitácora de vuelo', vuelo: 'Registro de vuelo', detalle: 'Detalle del vuelo', pilotos: 'Pilotos', piloto: 'Piloto', aeronaves: 'Aeronaves', aeronave: 'Aeronave', respaldo: 'Respaldo y estado' };
+  const TAB_OF = { vuelos: 'vuelos', vuelo: 'vuelos', detalle: 'vuelos', pilotos: 'pilotos', piloto: 'pilotos', aeronaves: 'aeronaves', aeronave: 'aeronaves', respaldo: 'respaldo' };
   function show(view) {
     document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
     $('v-' + view).classList.remove('hidden');
@@ -66,7 +66,17 @@
   async function loadAll() {
     S.pilots = (await DB.all('pilots')).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
     S.aircraft = (await DB.all('aircraft')).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    S.flights = (await DB.all('flights')).sort((a, b) => (b.inicio || '').localeCompare(a.inicio || ''));
+    S.flights = (await DB.all('flights')).map(normFlight).sort((a, b) => (b.inicio || '').localeCompare(a.inicio || ''));
+  }
+
+  /* Registros de la v2 guardaban luz/viento/entorno como listas; ahora son una sola opción. */
+  function normFlight(f) {
+    const one = (v) => (Array.isArray(v) ? (v.length === 1 ? v[0] : '') : (v || ''));
+    if (Array.isArray(f.luz)) f.luz = f.luz.includes('Soleado') && f.luz.includes('Nublado') ? 'Parcialmente nublado' : one(f.luz);
+    f.viento = one(f.viento);
+    f.entorno = one(f.entorno);
+    f.objetivo = f.objetivo || '';
+    return f;
   }
 
   /* =====================================================
@@ -258,21 +268,69 @@
   const checked = (name) => Array.from(document.querySelectorAll(`input[name="${name}"]:checked`)).map((i) => i.value);
   const setChecked = (name, vals) => document.querySelectorAll(`input[name="${name}"]`).forEach((i) => { i.checked = (vals || []).includes(i.value); });
 
+  /* ---------- lista, periodo y detalle ---------- */
+  const monthLabel = (ym) => { const [y, m] = ym.split('-').map(Number); const t = new Date(y, m - 1, 1).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' }); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const filteredFlights = () => S.flights.filter((f) => !S.period || (f.inicio || '').slice(0, 7) === S.period);
+  const periodTag = () => (S.period ? '_' + S.period : '');
+  const condText = (f) => [f.luz, f.viento, f.entorno].filter(Boolean).join(' · ') || '-';
+
   function renderFlights() {
-    const total = S.flights.reduce((s, f) => s + (f.minutos || 0), 0);
-    $('totals').innerHTML = `<div class="stat"><b>${S.flights.length}</b><small>Vuelos</small></div><div class="stat"><b>${hhmm(total)} h</b><small>Horas de vuelo</small></div>`;
-    const canShare = !!(navigator.canShare && navigator.share);
-    $('flightList').innerHTML = S.flights.length ? S.flights.map((f) => `<div class="card">
+    const meses = Array.from(new Set(S.flights.map((f) => (f.inicio || '').slice(0, 7)).filter(Boolean))).sort().reverse();
+    if (S.period && !meses.includes(S.period)) S.period = '';
+    $('periodFilter').innerHTML = '<option value="">Todo el historial</option>' + meses.map((m) => `<option value="${m}">${esc(monthLabel(m))}</option>`).join('');
+    $('periodFilter').value = S.period;
+    const list = filteredFlights();
+    const sum = (arr) => arr.reduce((s, f) => s + (f.minutos || 0), 0);
+    let html = `<div class="stat"><b>${list.length}</b><small>Vuelos${S.period ? ' del periodo' : ''}</small></div><div class="stat"><b>${hhmm(sum(list))} h</b><small>Horas de vuelo${S.period ? ' del periodo' : ''}</small></div>`;
+    if (S.period) html += `<div class="stat"><b>${hhmm(sum(S.flights))} h</b><small>Total histórico (${S.flights.length} vuelos)</small></div>`;
+    $('totals').innerHTML = html;
+    $('flightList').innerHTML = list.length ? list.map((f) => `<div class="card tap" data-act="fl-open" data-id="${f.id}">
         <div><h3>${esc(f.numLabel || '')} · ${fmtDate(f.inicio)}</h3>
         <div class="meta">${esc((f.inicio || '').slice(11, 16))} – ${esc((f.fin || '').slice(11, 16))} · <b>${hhmm(f.minutos)} h</b> · ${esc(f.tipo || '')}<br>
-        ${esc(f.sitio || 'Sin lugar')} · ${esc((f.pilotSnap || {}).nombre || '')} · ${esc((f.aircraftSnap || {}).nombre || '')}</div></div>
-        <div class="acts">
-          <button class="btn small" data-act="fl-pdf" data-id="${f.id}">PDF</button>
-          ${canShare ? `<button class="btn small" data-act="fl-share" data-id="${f.id}">Compartir</button>` : ''}
-          <button class="btn small" data-act="fl-edit" data-id="${f.id}">Editar</button>
-          <button class="btn small" data-act="fl-dup" data-id="${f.id}">Duplicar</button>
-          <button class="btn small danger" data-act="fl-del" data-id="${f.id}">Eliminar</button>
-        </div></div>`).join('') : '<div class="empty">Sin vuelos registrados.</div>';
+        ${esc(f.sitio || f.objetivo || 'Sin lugar')} · ${esc((f.pilotSnap || {}).nombre || '')}</div></div>
+        <div class="chev">Ver detalle y acciones ›</div></div>`).join('') : '<div class="empty">Sin vuelos registrados' + (S.period ? ' en este periodo' : '') + '.</div>';
+    $('exportHint').textContent = S.period ? 'Los resúmenes y exportaciones incluyen solo: ' + monthLabel(S.period) + '.' : '';
+    renderBackupBanner();
+  }
+
+  function renderBackupBanner() {
+    const box = $('backupBanner');
+    let msg = '';
+    if (S.flights.length && Date.now() > S.backupSnooze) {
+      if (!S.lastBackup) msg = 'Aún no has hecho un respaldo de tu bitácora.';
+      else {
+        const dias = Math.floor((Date.now() - new Date(S.lastBackup).getTime()) / 86400000);
+        if (dias >= 30) msg = 'Hace ' + dias + ' días que no haces un respaldo de tu bitácora.';
+      }
+    }
+    if (!msg) { box.classList.add('hidden'); box.innerHTML = ''; return; }
+    box.innerHTML = `<span>${esc(msg)} Los datos viven solo en este teléfono.</span><span class="row"><button class="btn small" data-act="backup-now">Hacer respaldo</button><button class="btn small" data-act="backup-later">Más tarde</button></span>`;
+    box.classList.remove('hidden');
+  }
+
+  function openDetail(id) {
+    const f = S.flights.find((x) => x.id === id);
+    if (!f) { goTab('vuelos'); return; }
+    S.detailId = id;
+    const p = f.pilotSnap || {}, a = f.aircraftSnap || {};
+    const row = (l, v) => `<div><small>${esc(l)}</small><b>${esc(v == null || v === '' ? '-' : v)}</b></div>`;
+    $('d-title').textContent = (f.numLabel || '') + ' · ' + fmtDate(f.inicio);
+    $('d-info').innerHTML =
+      row('Piloto', p.nombre) +
+      row('Aeronave', a.nombre ? a.nombre + ' (' + (a.marca || '') + ' ' + (a.modelo || '') + ', serie ' + (a.serie || '-') + ')' : '') +
+      row('Operación', fmtDT(f.inicio) + '  →  ' + fmtDT(f.fin)) +
+      row('Tiempo total de vuelo', hhmm(f.minutos) + ' h (' + (f.minutos != null ? f.minutos : '-') + ' min)') +
+      row('Objetivo del vuelo', f.objetivo) +
+      row('Característica del vuelo', f.tipo) +
+      row('Condiciones', condText(f)) +
+      row('Lugar / proyecto', f.sitio) +
+      (f.ring && f.ring.length > 2 ? row('Perímetro', (f.area / 10000).toFixed(2) + ' ha · ' + Math.round(f.perimetro) + ' m · ' + f.ring.length + ' vértices') : '') +
+      (f.obs ? row('Observaciones', f.obs) : '');
+    $('d-mapPanel').classList.toggle('hidden', !f.mapImage);
+    $('d-map').innerHTML = f.mapImage ? `<img src="${f.mapImage}" alt="Mapa del perímetro">` : '';
+    $('d-share').classList.toggle('hidden', !(navigator.canShare && navigator.share));
+    $('d-geo').classList.toggle('hidden', !(f.ring && f.ring.length > 2));
+    show('detalle');
   }
 
   function fillSelects(f) {
@@ -318,14 +376,14 @@
     if (id) f = clone(S.flights.find((x) => x.id === id));
     else if (opts.template) {
       const t = opts.template;
-      f = { pilotId: t.pilotId, aircraftId: t.aircraftId, sitio: t.sitio, tipo: t.tipo, ring: t.ring || [], layer: t.layer, pilotSnap: t.pilotSnap, aircraftSnap: t.aircraftSnap };
+      f = { pilotId: t.pilotId, aircraftId: t.aircraftId, sitio: t.sitio, objetivo: t.objetivo, tipo: t.tipo, ring: t.ring || [], layer: t.layer, pilotSnap: t.pilotSnap, aircraftSnap: t.aircraftSnap };
     } else f = { tipo: '', ring: [] };
     S.flight = f;
     fillSelects(f);
     $('f-inicio').value = f.inicio || ''; $('f-fin').value = f.fin || '';
-    $('f-sitio').value = f.sitio || ''; $('f-obs').value = f.obs || '';
-    setChecked('tipo', f.tipo ? [f.tipo] : []);
-    setChecked('luz', f.luz); setChecked('viento', f.viento); setChecked('entorno', f.entorno);
+    $('f-sitio').value = f.sitio || ''; $('f-obs').value = f.obs || ''; $('f-objetivo').value = f.objetivo || '';
+    setChecked('tipo', [f.tipo]);
+    setChecked('luz', [f.luz]); setChecked('viento', [f.viento]); setChecked('entorno', [f.entorno]);
     $('prefetchMsg').textContent = '';
     updateTotal();
     show('vuelo');
@@ -349,8 +407,10 @@
     if (!inicio || !fin) { toast('Indica el inicio y el fin de la operación.'); return null; }
     const minutos = minutesBetween(inicio, fin);
     if (minutos < 0) { toast('El fin de la operación es anterior al inicio.', 4500); return null; }
-    const tipo = checked('tipo')[0] || '';
-    if (!tipo) { toast('Elige la característica del vuelo (manual o autónomo).', 4500); return null; }
+    const objetivo = $('f-objetivo').value.trim();
+    const tipo = checked('tipo')[0] || '', luz = checked('luz')[0] || '', viento = checked('viento')[0] || '', entorno = checked('entorno')[0] || '';
+    const falta = [[objetivo, 'objetivo del vuelo'], [tipo, 'característica del vuelo'], [luz, 'condiciones de luz'], [viento, 'viento'], [entorno, 'entorno']].filter(([v]) => !v).map(([, l]) => l);
+    if (falta.length) { toast('Falta: ' + falta.join(', ') + '.', 5500); return null; }
 
     const pilot = pilotOf(pid), aircraft = aircraftOf(aid);
     const on = inicio.slice(0, 10);
@@ -359,10 +419,15 @@
     }
 
     const f = Object.assign({}, S.flight, {
-      pilotId: pid, aircraftId: aid, inicio, fin, minutos, tipo,
-      sitio: $('f-sitio').value.trim(), obs: $('f-obs').value.trim(),
-      luz: checked('luz'), viento: checked('viento'), entorno: checked('entorno')
+      pilotId: pid, aircraftId: aid, inicio, fin, minutos, tipo, objetivo,
+      sitio: $('f-sitio').value.trim(), obs: $('f-obs').value.trim(), luz, viento, entorno
     });
+    // Aviso de traslape: el mismo piloto o la misma aeronave en dos vuelos que se cruzan en el tiempo.
+    const choque = S.flights.find((g) => g.id !== f.id && (g.pilotId === pid || g.aircraftId === aid) && g.inicio < fin && inicio < g.fin);
+    if (choque) {
+      const quien = choque.pilotId === pid && choque.aircraftId === aid ? 'el mismo piloto y la misma aeronave' : choque.pilotId === pid ? 'el mismo piloto' : 'la misma aeronave';
+      if (!confirm('Este vuelo se traslapa en el tiempo con ' + (choque.numLabel || 'otro registro') + ' (' + fmtDT(choque.inicio) + ' a ' + fmtDT(choque.fin) + '), con ' + quien + '. ¿Guardar de todos modos?')) return null;
+    }
     // Copia de los datos dentro del registro: el PDF conserva lo que se firmó aunque luego se edite el catálogo.
     const livePilot = S.pilots.find((p) => p.id === pid), liveAc = S.aircraft.find((a) => a.id === aid);
     if (livePilot) f.pilotSnap = { id: livePilot.id, nombre: livePilot.nombre, cedula: livePilot.cedula, autorizacion: livePilot.autorizacion, otorgamiento: livePilot.otorgamiento, expiracion: livePilot.expiracion, firma: livePilot.firma };
@@ -414,21 +479,56 @@
   }
 
   function exportCsv() {
-    const cols = ['registro', 'inicio', 'fin', 'minutos', 'total_hhmm', 'piloto', 'cedula', 'autorizacion', 'aeronave', 'marca', 'modelo', 'serie', 'caracteristica', 'luz', 'viento', 'entorno', 'lugar_proyecto', 'area_ha', 'lat_centroide', 'lon_centroide', 'observaciones'];
+    const list = filteredFlights().slice().reverse();
+    if (!list.length) { toast('No hay vuelos para exportar.'); return; }
+    const cols = ['registro', 'inicio', 'fin', 'minutos', 'total_hhmm', 'piloto', 'cedula', 'autorizacion', 'aeronave', 'marca', 'modelo', 'serie', 'objetivo', 'caracteristica', 'luz', 'viento', 'entorno', 'lugar_proyecto', 'area_ha', 'lat_centroide', 'lon_centroide', 'observaciones'];
     const q = (v) => { const s = v == null ? '' : String(v); return /[";\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    const rows = S.flights.slice().reverse().map((f) => {
+    const rows = list.map((f) => {
       const p = f.pilotSnap || {}, a = f.aircraftSnap || {};
       const c = f.ring && f.ring.length > 2 ? Geo.centroid(f.ring) : ['', ''];
-      return [f.numLabel, f.inicio, f.fin, f.minutos, hhmm(f.minutos), p.nombre, p.cedula, p.autorizacion, a.nombre, a.marca, a.modelo, a.serie, f.tipo,
-        (f.luz || []).join(' / '), (f.viento || []).join(' / '), (f.entorno || []).join(' / '), f.sitio,
+      return [f.numLabel, f.inicio, f.fin, f.minutos, hhmm(f.minutos), p.nombre, p.cedula, p.autorizacion, a.nombre, a.marca, a.modelo, a.serie, f.objetivo, f.tipo,
+        f.luz, f.viento, f.entorno, f.sitio,
         f.area ? (f.area / 10000).toFixed(2) : '', c[0] === '' ? '' : c[0].toFixed(6), c[1] === '' ? '' : c[1].toFixed(6), f.obs].map(q).join(';');
     });
-    download('﻿' + [cols.join(';')].concat(rows).join('\r\n'), 'bitacora_uas_' + todayStr() + '.csv', 'text/csv;charset=utf-8');
+    download('﻿' + [cols.join(';')].concat(rows).join('\r\n'), 'bitacora_uas' + periodTag() + '_' + todayStr() + '.csv', 'text/csv;charset=utf-8');
+  }
+
+  /* GeoJSON solo de polígonos (perímetros de vuelo) con los datos del vuelo. Nombres de campo de hasta 10 caracteres
+     para que no se trunquen si luego se convierte a shapefile. */
+  function flightsGeoJSON(list) {
+    const feats = list.filter((f) => f.ring && f.ring.length > 2).map((f) => {
+      const p = f.pilotSnap || {}, a = f.aircraftSnap || {};
+      const c = Geo.centroid(f.ring);
+      const coords = f.ring.map(([lat, lng]) => [lng, lat]); coords.push(coords[0]);
+      return {
+        type: 'Feature',
+        properties: {
+          registro: f.numLabel || '', inicio: f.inicio || '', fin: f.fin || '', minutos: f.minutos, piloto: p.nombre || '',
+          aeronave: a.nombre || '', marca: a.marca || '', modelo: a.modelo || '', serie: a.serie || '',
+          objetivo: f.objetivo || '', tipo: f.tipo || '', luz: f.luz || '', viento: f.viento || '', entorno: f.entorno || '', lugar: f.sitio || '',
+          area_ha: +(f.area / 10000).toFixed(3), perim_m: Math.round(f.perimetro), lat_cen: +c[0].toFixed(6), lon_cen: +c[1].toFixed(6)
+        },
+        geometry: { type: 'Polygon', coordinates: [coords] }
+      };
+    });
+    return { n: feats.length, text: JSON.stringify({ type: 'FeatureCollection', features: feats }, null, 2) };
+  }
+  function exportGeoAll() {
+    const r = flightsGeoJSON(filteredFlights());
+    if (!r.n) { toast('Ningún vuelo tiene perímetro dibujado.'); return; }
+    download(r.text, 'perimetros_vuelos' + periodTag() + '_' + todayStr() + '.geojson', 'application/geo+json');
+    toast('GeoJSON con ' + r.n + ' perímetro' + (r.n === 1 ? '' : 's') + ' (WGS84).');
+  }
+  function exportGeoOne(f) {
+    const r = flightsGeoJSON([f]);
+    if (!r.n) { toast('Este vuelo no tiene perímetro.'); return; }
+    download(r.text, 'perimetro_' + (f.numLabel || 'vuelo') + '.geojson', 'application/geo+json');
   }
 
   function summaryPdf() {
-    if (!S.flights.length) { toast('No hay vuelos para el resumen.'); return; }
-    try { PDF.summaryDoc(S.flights).save('Resumen_bitacora_UAS_' + todayStr() + '.pdf'); }
+    const list = filteredFlights();
+    if (!list.length) { toast('No hay vuelos para el resumen.'); return; }
+    try { PDF.summaryDoc(list, S.period ? monthLabel(S.period) : '').save('Resumen_bitacora_UAS' + periodTag() + '_' + todayStr() + '.pdf'); }
     catch (e) { console.error(e); toast('Error al generar el resumen: ' + e.message, 6000); }
   }
 
@@ -449,11 +549,18 @@
       }
     } catch (e) { /* ignorar */ }
     $('storageInfo').textContent = t;
+    $('backupInfo').textContent = S.lastBackup ? 'Último respaldo: ' + fmtDate(S.lastBackup.slice(0, 10)) + '.' : 'Aún no se ha hecho ningún respaldo en este teléfono.';
+    let ver = '';
+    try { const ks = await caches.keys(); const k = ks.find((x) => x.startsWith('bv-app-')); if (k) ver = k.replace('bv-app-', ''); } catch (e) { /* sin caché */ }
+    $('versionInfo').textContent = ver ? 'Versión de la app: ' + ver : '';
   }
 
   async function backup() {
     const data = { app: 'bitacora-uas', version: 2, exportedAt: new Date().toISOString(), pilots: S.pilots, aircraft: S.aircraft, flights: S.flights, seq: await DB.kvGet('seq', 0) };
     download(JSON.stringify(data), 'respaldo_bitacora_uas_' + todayStr() + '.json', 'application/json');
+    S.lastBackup = new Date().toISOString();
+    await DB.kvSet('lastBackup', S.lastBackup);
+    renderBackupBanner(); renderStatus();
     toast('Respaldo exportado.');
   }
   async function restore(file) {
@@ -505,16 +612,22 @@
     if (now) { $(now.dataset.now).value = nowDT(); updateTotal(); return; }
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    const id = b.dataset.id;
+    const id = b.dataset.id || S.detailId;
+    const cur = () => S.flights.find((f) => f.id === id);
     switch (b.dataset.act) {
-      case 'flight-back': goTab('vuelos'); break;
+      case 'flight-back': if (S.flight && S.flight.id) openDetail(S.flight.id); else goTab('vuelos'); break;
+      case 'detail-back': goTab('vuelos'); break;
+      case 'fl-open': openDetail(id); break;
       case 'fl-edit': openFlight(id); break;
-      case 'fl-dup': openFlight(null, { template: S.flights.find((f) => f.id === id) }); break;
-      case 'fl-pdf': pdfNow(S.flights.find((f) => f.id === id)); break;
-      case 'fl-share': sharePdf(S.flights.find((f) => f.id === id)); break;
+      case 'fl-dup': openFlight(null, { template: cur() }); break;
+      case 'fl-pdf': pdfNow(cur()); break;
+      case 'fl-share': sharePdf(cur()); break;
+      case 'fl-geo': exportGeoOne(cur()); break;
       case 'fl-del':
-        if (confirm('¿Eliminar este registro de la bitácora? Esta acción no se puede deshacer.')) { await DB.del('flights', id); await loadAll(); renderFlights(); toast('Registro eliminado.'); }
+        if (confirm('¿Eliminar este registro de la bitácora? Esta acción no se puede deshacer.')) { await DB.del('flights', id); await loadAll(); S.detailId = null; goTab('vuelos'); toast('Registro eliminado.'); }
         break;
+      case 'backup-now': await backup(); break;
+      case 'backup-later': S.backupSnooze = Date.now() + 7 * 86400000; await DB.kvSet('backupSnooze', S.backupSnooze); renderBackupBanner(); break;
       case 'pilot-back': goTab('pilotos'); break;
       case 'pilot-edit': openPilot(id); break;
       case 'pilot-del':
@@ -535,15 +648,18 @@
   $('btnSavePilot').onclick = savePilot;
   $('btnSaveAircraft').onclick = saveAircraft;
   $('sigPilotClear').onclick = () => S.sigPilot.clear();
-  $('btnSaveFlight').onclick = async () => { const f = await saveFlight(); if (f) { toast('Vuelo guardado (' + f.numLabel + ').'); goTab('vuelos'); } };
-  $('btnSaveFlightPdf').onclick = async () => { const f = await saveFlight(); if (f) { pdfNow(f); goTab('vuelos'); } };
+  $('btnSaveFlight').onclick = async () => { const f = await saveFlight(); if (f) { toast('Vuelo guardado (' + f.numLabel + ').'); openDetail(f.id); } };
+  $('periodFilter').onchange = (e) => { S.period = e.target.value; renderFlights(); };
+  $('btnGeoAll').onclick = exportGeoAll;
+  document.querySelectorAll('[data-sug]').forEach((b) => b.addEventListener('click', () => {
+    const el = $('f-objetivo'), t = b.dataset.sug;
+    if (el.value.toLowerCase().includes(t.toLowerCase())) { el.focus(); return; }
+    el.value = el.value.trim() ? el.value.trim().replace(/[.,;]$/, '') + ', ' + t : t;
+    el.focus();
+  }));
   ['f-inicio', 'f-fin'].forEach((id) => $(id).addEventListener('input', updateTotal));
   $('f-pilot').addEventListener('change', refreshInfo);
   $('f-aircraft').addEventListener('change', refreshInfo);
-  // Viento: "presencia" y "sin presencia" son excluyentes entre sí.
-  document.querySelectorAll('input[name="viento"]').forEach((i) => i.addEventListener('change', () => {
-    if (i.checked) document.querySelectorAll('input[name="viento"]').forEach((o) => { if (o !== i) o.checked = false; });
-  }));
   $('btnLocate').onclick = () => S.map && S.map.locate({ setView: true, maxZoom: 17, enableHighAccuracy: true });
   $('fileImport').onchange = (e) => importPerimeter(e.target.files[0]);
   $('btnExpGeo').onclick = () => exportPerimeter('geojson');
@@ -563,10 +679,20 @@
     try {
       await loadAll();
       S.lastPilot = await DB.kvGet('lastPilot', ''); S.lastAircraft = await DB.kvGet('lastAircraft', '');
+      S.lastBackup = await DB.kvGet('lastBackup', ''); S.backupSnooze = await DB.kvGet('backupSnooze', 0);
     } catch (e) { console.error(e); toast('No se pudo abrir el almacenamiento local: ' + e.message, 8000); }
     goTab('vuelos');
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) navigator.serviceWorker.register('sw.js').catch((e) => console.warn('SW', e));
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+      // Aviso de versión nueva: el service worker nuevo toma el control; la página sigue con el código viejo hasta recargar.
+      const hadController = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) $('updateBar').classList.remove('hidden'); });
+      $('btnReload').onclick = () => location.reload();
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // Al volver a abrir la app desde segundo plano, se busca una versión nueva.
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+      }).catch((e) => console.warn('SW', e));
+    }
     window.__BV = { S, DB, cedulaOk }; // depuración
   })();
 })();

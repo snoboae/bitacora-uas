@@ -1,4 +1,4 @@
-# Bitácora de Vuelo UAS (PWA) - v2
+# Bitácora de Vuelo UAS (PWA) - v3
 
 Aplicación web instalable para llevar la **bitácora del piloto UAS** (DGAC Ecuador, Parte 101) con el **perímetro de vuelo** dibujado en un mapa. Funciona sin conexión y genera un PDF por vuelo.
 
@@ -9,13 +9,14 @@ Aplicación web instalable para llevar la **bitácora del piloto UAS** (DGAC Ecu
 3. **Bitácora → Nuevo vuelo**:
    - Elige piloto y aeronave en las listas desplegables; sus datos se integran solos al registro.
    - Inicio y fin de la operación (botón "Ahora"); el tiempo total se calcula automáticamente.
+   - Objetivo del vuelo: texto libre (con sugerencias rápidas: Fotogrametría, Modelado 3D, Inspección, Foto / Video).
    - Característica del vuelo: Vuelo Manual o Vuelo Autónomo.
-   - Condiciones: luz (nublado / soleado), viento (presencia / sin presencia) y entorno (urbano / rural).
+   - Condiciones (una opción cada una): luz (soleado / parcialmente nublado / nublado), viento (presencia / sin presencia) y entorno (urbano / rural).
    - Perímetro: dibújalo en el mapa o impórtalo (GeoJSON / KML desde QGIS). Calcula área, perímetro y centroide.
-   - **Guardar y PDF** genera el PDF (con mapa, vértices en WGS84 y UTM, y firma del piloto).
+   - **Guardar** abre la ficha del vuelo, desde donde puedes Descargar PDF (con mapa, vértices en WGS84 y UTM, y firma), Compartir, exportar GeoJSON, Editar, Duplicar o Eliminar.
 4. **Respaldo**: exporta / importa todos los datos en un archivo `.json`.
 
-Otras salidas: resumen de toda la bitácora en PDF, CSV (separador `;`), y el perímetro en GeoJSON o KML. El botón **Duplicar** copia piloto, aeronave, lugar y perímetro de un vuelo anterior (útil para varios vuelos en el mismo predio).
+Otras salidas: resumen en PDF y CSV (separador `;`, con lat/lon del centroide) filtrables por mes, y **Exportar para SIG**: GeoJSON solo con los polígonos y los datos del vuelo. También aviso de traslape de horarios, recordatorio de respaldo (30 días) y aviso de nueva versión. El botón **Duplicar** copia piloto, aeronave, lugar y perímetro de un vuelo anterior (útil para varios vuelos en el mismo predio).
 
 ## Qué va a GitHub y qué queda en el teléfono
 
@@ -31,7 +32,8 @@ Junto a esta carpeta hay un `publicar.bat` (y `publicar.ps1`). Usa el **mismo to
 
 - Doble clic en `publicar.bat`. La primera vez pregunta el repositorio (existente o nuevo) y lo recuerda en `publicar.config.json`.
 - Actualiza solo el número de versión de `sw.js`, sube lo que cambió, borra lo que ya no existe en la carpeta y, si no hay cambios, no crea ningún commit.
-- Opciones: `publicar.bat -Simular` (no se conecta), `-Reconfigurar` (otro repositorio), `-GuardarToken` (pegar un token nuevo).
+- Si el token falta o GitHub lo rechaza (vencido o revocado), el script te lo pide en la misma ventana (no se muestra al pegarlo), comprueba que sea válido y lo guarda en el Administrador de credenciales, reemplazando el anterior.
+- Opciones: `publicar.bat -Simular` (no se conecta), `-Reconfigurar` (otro repositorio), `-GuardarToken` (pegar un token nuevo sin publicar).
 - La dirección final queda como `https://USUARIO.github.io/REPOSITORIO/bitacora-uas/`.
 
 ### Publicar a mano (alternativa)

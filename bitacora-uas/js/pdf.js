@@ -7,7 +7,7 @@ const PDF = (() => {
   const fmtDate = (d) => (d && /^\d{4}-\d{2}-\d{2}/.test(d) ? d.slice(0, 10).split('-').reverse().join('/') : d || '-');
   const fmtDT = (s) => (s && s.length >= 16 ? fmtDate(s) + '  ' + s.slice(11, 16) : s || '-');
   const hhmm = (min) => (min == null || isNaN(min) ? '-' : String(Math.floor(min / 60)).padStart(2, '0') + ':' + String(Math.round(min % 60)).padStart(2, '0'));
-  const list = (a) => (Array.isArray(a) && a.length ? a.join(', ') : '-');
+  const list = (a) => (Array.isArray(a) ? (a.length ? a.join(', ') : '-') : (a || '-'));
 
   function newDoc(orientation) {
     const { jsPDF } = window.jspdf;
@@ -146,7 +146,8 @@ const PDF = (() => {
       { l: 'Lugar / proyecto', v: f.sitio, span: 2 }
     ], 4);
 
-    section(ctx, '4. Característica del vuelo y condiciones de operación');
+    section(ctx, '4. Objetivo, característica y condiciones de operación');
+    grid(ctx, [{ l: 'Objetivo del vuelo', v: f.objetivo }], 1);
     grid(ctx, [{ l: 'Característica del vuelo', v: f.tipo }], 1);
     grid(ctx, [
       { l: 'Condiciones de luz', v: list(f.luz) },
@@ -195,7 +196,7 @@ const PDF = (() => {
   }
 
   /* ---------- Resumen de toda la bitácora ---------- */
-  function summaryDoc(flights) {
+  function summaryDoc(flights, periodLabel) {
     const doc = newDoc('portrait');
     const sorted = flights.slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
     const total = sorted.reduce((s, f) => s + (f.minutos || 0), 0);
@@ -205,7 +206,7 @@ const PDF = (() => {
     grid(ctx, [
       { l: 'Vuelos registrados', v: String(sorted.length) },
       { l: 'Horas totales de vuelo', v: hhmm(total) + ' h' },
-      { l: 'Periodo', v: sorted.length ? fmtDate(sorted[0].inicio) + ' a ' + fmtDate(sorted[sorted.length - 1].inicio) : '-' }
+      { l: 'Periodo', v: periodLabel ? periodLabel : sorted.length ? fmtDate(sorted[0].inicio) + ' a ' + fmtDate(sorted[sorted.length - 1].inicio) : '-' }
     ], 3);
     const cols = [{ t: 'Registro', w: 19 }, { t: 'Inicio', w: 30 }, { t: 'Lugar / proyecto', w: 44 }, { t: 'Piloto', w: 38 }, { t: 'Aeronave', w: 37 }, { t: 'Total', w: 14 }];
     const head = () => {

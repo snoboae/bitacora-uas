@@ -21,12 +21,46 @@
 <main>
   <!-- ============ BITÁCORA (lista) ============ -->
   <section id="v-vuelos" class="view">
-    <div class="bar"><button class="btn primary" id="btnNewFlight">+ Nuevo vuelo</button></div>
+    <div id="backupBanner" class="notice hidden"></div>
+    <div class="bar wrap">
+      <button class="btn primary" id="btnNewFlight">+ Nuevo vuelo</button>
+      <select id="periodFilter" class="filter" aria-label="Periodo"></select>
+    </div>
     <div id="totals" class="statgrid"></div>
     <div id="flightList" class="cards"></div>
     <div class="row wrap pad">
       <button class="btn" id="btnSummaryPdf">Resumen en PDF</button>
       <button class="btn" id="btnCsv">Exportar CSV</button>
+      <button class="btn" id="btnGeoAll">Exportar para SIG (GeoJSON)</button>
+    </div>
+    <p class="hint" id="exportHint"></p>
+  </section>
+
+  <!-- ============ DETALLE DE UN VUELO ============ -->
+  <section id="v-detalle" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="detail-back">← Bitácora</button>
+      <button class="btn primary" data-act="fl-pdf">Descargar PDF</button>
+    </div>
+    <div class="panel">
+      <h2 id="d-title"></h2>
+      <div id="d-info" class="kv"></div>
+    </div>
+    <div class="panel hidden" id="d-mapPanel">
+      <h2>Perímetro de vuelo</h2>
+      <div id="d-map" class="preview"></div>
+    </div>
+    <div class="panel">
+      <h2>Acciones</h2>
+      <div class="actgrid">
+        <button class="btn" data-act="fl-pdf">Descargar PDF</button>
+        <button class="btn" data-act="fl-share" id="d-share">Compartir PDF</button>
+        <button class="btn" data-act="fl-geo" id="d-geo">Exportar perímetro (GeoJSON)</button>
+        <button class="btn" data-act="fl-edit">Editar</button>
+        <button class="btn" data-act="fl-dup">Duplicar</button>
+        <button class="btn danger" data-act="fl-del">Eliminar</button>
+      </div>
+      <p class="hint">"Descargar PDF" guarda el archivo en el teléfono; "Compartir PDF" lo envía por WhatsApp, correo u otra app. El PDF siempre se genera con los datos actuales del registro.</p>
     </div>
   </section>
 
@@ -34,7 +68,6 @@
   <section id="v-vuelo" class="view hidden">
     <div class="bar sticky">
       <button class="btn" data-act="flight-back">← Volver</button>
-      <button class="btn" id="btnSaveFlightPdf">Guardar y PDF</button>
       <button class="btn primary" id="btnSaveFlight">Guardar</button>
     </div>
 
@@ -62,7 +95,19 @@
     </div>
 
     <div class="panel">
-      <h2>Característica del vuelo</h2>
+      <h2>Objetivo del vuelo *</h2>
+      <label class="fld"><span>Escribe el objetivo (o toca una sugerencia y complétala)</span>
+        <textarea id="f-objetivo" rows="2" placeholder="Ej. Fotogrametría para ortomosaico del lote"></textarea></label>
+      <div class="chips sug">
+        <button type="button" class="chip-btn" data-sug="Fotogrametría">Fotogrametría</button>
+        <button type="button" class="chip-btn" data-sug="Modelado 3D">Modelado 3D</button>
+        <button type="button" class="chip-btn" data-sug="Inspección">Inspección</button>
+        <button type="button" class="chip-btn" data-sug="Foto / Video">Foto / Video</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Característica del vuelo *</h2>
       <div class="chips">
         <label class="chip"><input type="radio" name="tipo" value="Vuelo Manual"><span>Vuelo Manual</span></label>
         <label class="chip"><input type="radio" name="tipo" value="Vuelo Autónomo"><span>Vuelo Autónomo</span></label>
@@ -70,21 +115,22 @@
     </div>
 
     <div class="panel">
-      <h2>Condiciones de operación</h2>
+      <h2>Condiciones de operación *</h2>
       <div class="grp">Condiciones de luz</div>
       <div class="chips">
-        <label class="chip"><input type="checkbox" name="luz" value="Nublado"><span>Nublado</span></label>
-        <label class="chip"><input type="checkbox" name="luz" value="Soleado"><span>Soleado</span></label>
+        <label class="chip"><input type="radio" name="luz" value="Soleado"><span>Soleado</span></label>
+        <label class="chip"><input type="radio" name="luz" value="Parcialmente nublado"><span>Parcialmente nublado</span></label>
+        <label class="chip"><input type="radio" name="luz" value="Nublado"><span>Nublado</span></label>
       </div>
       <div class="grp">Viento</div>
       <div class="chips">
-        <label class="chip"><input type="checkbox" name="viento" value="Presencia de viento"><span>Presencia de viento</span></label>
-        <label class="chip"><input type="checkbox" name="viento" value="Sin presencia de viento"><span>Sin presencia de viento</span></label>
+        <label class="chip"><input type="radio" name="viento" value="Presencia de viento"><span>Presencia de viento</span></label>
+        <label class="chip"><input type="radio" name="viento" value="Sin presencia de viento"><span>Sin presencia de viento</span></label>
       </div>
       <div class="grp">Entorno</div>
       <div class="chips">
-        <label class="chip"><input type="checkbox" name="entorno" value="Urbano"><span>Urbano</span></label>
-        <label class="chip"><input type="checkbox" name="entorno" value="Rural"><span>Rural</span></label>
+        <label class="chip"><input type="radio" name="entorno" value="Urbano"><span>Urbano</span></label>
+        <label class="chip"><input type="radio" name="entorno" value="Rural"><span>Rural</span></label>
       </div>
     </div>
 
@@ -166,6 +212,7 @@
       <h2>Estado de la app</h2>
       <p id="offlineState" class="hint"></p>
       <p class="hint" id="storageInfo"></p>
+      <p class="hint" id="versionInfo"></p>
     </div>
     <div class="panel">
       <h2>Respaldo de datos</h2>
@@ -174,6 +221,7 @@
         <button class="btn primary" id="btnBackup">Exportar respaldo (.json)</button>
         <label class="btn filebtn">Importar respaldo<input type="file" id="fileRestore" accept=".json,application/json"></label>
       </div>
+      <p class="hint" id="backupInfo"></p>
     </div>
   </section>
 </main>
@@ -184,6 +232,7 @@
   <button data-tab="aeronaves">Aeronaves</button>
   <button data-tab="respaldo">Respaldo</button>
 </nav>
+<div id="updateBar" class="updatebar hidden"><span>Hay una versión nueva de la app.</span><button class="btn small" id="btnReload">Actualizar</button></div>
 <div id="toast" class="toast hidden"></div>
 <div id="busy" class="busy hidden"><div>Procesando…</div></div>
 

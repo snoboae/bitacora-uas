@@ -105,3 +105,22 @@ main { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
 @media (prefers-color-scheme: dark) { .warn { background: #3b3211; color: #ffe08a; border-color: #6b5a1a; } }
 .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--danger); color: #fff; margin-left: 6px; vertical-align: middle; }
 .fld input[readonly].bad { color: var(--danger); }
+
+/* ---- v3: detalle, avisos, sugerencias ---- */
+.card.tap { cursor: pointer; }
+.card.tap:active { background: var(--bg); }
+.card .chev { color: var(--muted); font-size: 13px; }
+.kv { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.kv div { display: flex; flex-direction: column; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.kv small { color: var(--muted); font-size: 12px; }
+.kv b { font-weight: 600; word-break: break-word; }
+.actgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 380px) { .actgrid { grid-template-columns: 1fr; } }
+.chip-btn { appearance: none; font: inherit; font-size: 14px; padding: 7px 14px; min-height: 38px; border: 1px dashed var(--muted); border-radius: 99px; background: transparent; color: var(--ink); cursor: pointer; }
+.chip-btn:active { background: var(--bg); }
+.chips.sug { margin-top: 8px; }
+.notice { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 10px 12px; border-radius: 10px; background: #fff3cd; color: #5c4400; border: 1px solid #f0d36b; font-size: 14px; }
+@media (prefers-color-scheme: dark) { .notice { background: #3b3211; color: #ffe08a; border-color: #6b5a1a; } }
+.notice .btn { background: transparent; }
+.updatebar { position: fixed; left: 12px; right: 12px; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 1500; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; border-radius: 12px; background: #172026; color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.35); max-width: 860px; margin: 0 auto; }
+.updatebar .btn { background: var(--accent); color: #1b1b1b; border-color: var(--accent); font-weight: 700; }
