@@ -198,8 +198,25 @@
     map.addControl(new L.Control.Draw({
       position: 'topleft',
       draw: { polygon: { allowIntersection: false, showArea: false, shapeOptions: shape }, rectangle: { showArea: false, shapeOptions: shape }, polyline: false, circle: false, marker: false, circlemarker: false },
-      edit: { featureGroup: drawn, remove: true }
+      edit: { featureGroup: drawn, remove: false }
     }));
+    const DelCtl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd() {
+        const box = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+        const b = L.DomUtil.create('a', 'bv-del', box);
+        b.href = '#'; b.title = 'Borrar perímetro'; b.setAttribute('role', 'button'); b.setAttribute('aria-label', 'Borrar perímetro');
+        b.innerHTML = '&#128465;';
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.on(b, 'click', (ev) => {
+          L.DomEvent.preventDefault(ev);
+          if (S.ring.length < 3) { toast('No hay perímetro que borrar.'); return; }
+          if (confirm('¿Borrar el perímetro dibujado?')) { setRing([], false); }
+        });
+        return box;
+      }
+    });
+    map.addControl(new DelCtl());
     map.on(L.Draw.Event.CREATED, (e) => setRing(ringFromLatLngs(e.layer.getLatLngs()[0]), false));
     map.on(L.Draw.Event.EDITED, () => { let r = null; drawn.eachLayer((l) => { r = ringFromLatLngs(l.getLatLngs()[0]); }); if (r) setRing(r, false); });
     map.on(L.Draw.Event.DELETED, () => setRing([], false));

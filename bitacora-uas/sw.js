@@ -1,7 +1,7 @@
 /* Service worker: la app funciona sin conexión.
    - Archivos de la app: caché con actualización en segundo plano.
    - Teselas de mapa: caché con límite (las que ya viste o precargaste). */
-const VERSION = 'v8de6f79a';
+const VERSION = 'v2e3b262e';
 const APP_CACHE = 'bv-app-' + VERSION;
 const TILE_CACHE = 'bv-tiles-v1';
 const MAX_TILES = 2500;

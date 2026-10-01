@@ -114,7 +114,7 @@ const PDF = (() => {
     const p = f.pilotSnap || {}, a = f.aircraftSnap || {};
     const doc = newDoc();
     const ctx = { doc, y: 30 };
-    header(doc, 'BITÁCORA DE VUELO DEL PILOTO UAS', 'Registro de horas de vuelo en UA - Normativa DGAC Ecuador, Parte 101');
+    header(doc, 'BITÁCORA DE VUELO DEL PILOTO UAS', 'Registro de vuelo');
     doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
     doc.text('Registro N° ' + (f.numLabel || '-'), PW - M, 11, { align: 'right' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
