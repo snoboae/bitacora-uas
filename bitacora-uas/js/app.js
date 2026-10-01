@@ -589,6 +589,18 @@
     $('versionInfo').textContent = ver ? 'Versión de la app: ' + ver : '';
   }
 
+  /* Comentarios: abre la app de correo con el mensaje armado (mailto). La dirección se arma por partes para no quedar legible tal cual en el código. */
+  function sendFeedback() {
+    const msg = $('fb-msg').value.trim();
+    if (!msg) { toast('Escribe tu mensaje primero.'); return; }
+    const tipo = $('fb-tipo').value;
+    let body = msg;
+    if ($('fb-tech').checked) body += '\n\n---\nVersión de la app: ' + (($('versionInfo').textContent || '').replace('Versión de la app: ', '') || 'desconocida') + '\nDispositivo: ' + navigator.userAgent;
+    const to = ['geomapping.drone', 'gmail.com'].join('@');
+    const url = 'mailto:' + to + '?subject=' + encodeURIComponent('Bitácora UAS - ' + tipo) + '&body=' + encodeURIComponent(body.slice(0, 1500));
+    window.location.href = url;
+  }
+
   async function backup() {
     const data = { app: 'bitacora-uas', version: 2, exportedAt: new Date().toISOString(), pilots: S.pilots, aircraft: S.aircraft, flights: S.flights, seq: await DB.kvGet('seq', 0) };
     const entregado = await download(JSON.stringify(data), 'respaldo_bitacora_uas_' + todayStr() + '.json', 'application/json');
@@ -703,6 +715,7 @@
   $('btnCsv').onclick = exportCsv;
   $('btnSummaryPdf').onclick = summaryPdf;
   $('btnBackup').onclick = backup;
+  $('btnFeedback').onclick = sendFeedback;
   $('fileRestore').onchange = (e) => restore(e.target.files[0]);
 
   function netState() { const n = $('net'); n.textContent = navigator.onLine ? 'en línea' : 'sin conexión'; n.classList.toggle('off', !navigator.onLine); }

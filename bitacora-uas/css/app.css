@@ -127,3 +127,6 @@ main { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
 
 /* botón único para borrar el perímetro */
 .leaflet-bar a.bv-del{display:flex;align-items:center;justify-content:center;font-size:17px;text-decoration:none;color:#b3261e}
+
+.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); margin: 8px 0 12px; }
+.chk input { margin-top: 2px; flex: none; }

@@ -223,6 +223,16 @@
       </div>
       <p class="hint" id="backupInfo"></p>
     </div>
+    <div class="panel">
+      <h2>Comentarios y sugerencias</h2>
+      <p class="hint">Envía comentarios, sugerencias o errores. Se abrirá tu app de correo con el mensaje listo para enviar.</p>
+      <label class="fld"><span>Tipo</span>
+        <select id="fb-tipo"><option>Sugerencia</option><option>Error (bug)</option><option>Comentario</option></select></label>
+      <label class="fld"><span>Mensaje</span>
+        <textarea id="fb-msg" rows="4" placeholder="Cuéntanos qué pasó o qué mejorarías"></textarea></label>
+      <label class="chk"><input type="checkbox" id="fb-tech" checked> Incluir versión de la app y tipo de teléfono (ayuda a reproducir errores). No se envían datos de vuelos ni pilotos.</label>
+      <div class="row wrap"><button class="btn primary" id="btnFeedback">Enviar por correo</button></div>
+    </div>
   </section>
 </main>
 
