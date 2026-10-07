@@ -59,11 +59,11 @@
   }
 
   /* ---------- estado ---------- */
-  const S = { pilots: [], aircraft: [], flights: [], tab: 'vuelos', flight: null, pilot: null, ac: null, ring: [], baseLayer: 'esri', map: null, drawn: null, sigPilot: null, locMark: null, detailId: null, period: '', lastBackup: '', backupSnooze: 0 };
+  const S = { pilots: [], aircraft: [], flights: [], tab: 'vuelos', flight: null, pilot: null, ac: null, ring: [], baseLayer: 'esri', map: null, drawn: null, sigPilot: null, locMark: null, detailId: null, period: '', hPeriod: '', hSel: null, lastBackup: '', backupSnooze: 0 };
 
   /* ---------- navegación ---------- */
-  const TITLES = { vuelos: 'Bitácora de vuelo', vuelo: 'Registro de vuelo', detalle: 'Detalle del vuelo', pilotos: 'Pilotos', piloto: 'Piloto', aeronaves: 'Aeronaves', aeronave: 'Aeronave', respaldo: 'Respaldo y estado' };
-  const TAB_OF = { vuelos: 'vuelos', vuelo: 'vuelos', detalle: 'vuelos', pilotos: 'pilotos', piloto: 'pilotos', aeronaves: 'aeronaves', aeronave: 'aeronaves', respaldo: 'respaldo' };
+  const TITLES = { horas: 'Horas de vuelo', horasdet: 'Horas de vuelo', vuelos: 'Bitácora de vuelo', vuelo: 'Registro de vuelo', detalle: 'Detalle del vuelo', pilotos: 'Pilotos', piloto: 'Piloto', aeronaves: 'Aeronaves', aeronave: 'Aeronave', respaldo: 'Respaldo y estado' };
+  const TAB_OF = { horas: 'vuelos', horasdet: 'vuelos', vuelos: 'vuelos', vuelo: 'vuelos', detalle: 'vuelos', pilotos: 'pilotos', piloto: 'pilotos', aeronaves: 'aeronaves', aeronave: 'aeronaves', respaldo: 'respaldo' };
   function show(view) {
     document.querySelectorAll('.view').forEach((v) => v.classList.add('hidden'));
     $('v-' + view).classList.remove('hidden');
@@ -315,8 +315,8 @@
     $('periodFilter').value = S.period;
     const list = filteredFlights();
     const sum = (arr) => arr.reduce((s, f) => s + (f.minutos || 0), 0);
-    let html = `<div class="stat"><b>${list.length}</b><small>Vuelos${S.period ? ' del periodo' : ''}</small></div><div class="stat"><b>${hhmm(sum(list))} h</b><small>Horas de vuelo${S.period ? ' del periodo' : ''}</small></div>`;
-    if (S.period) html += `<div class="stat"><b>${hhmm(sum(S.flights))} h</b><small>Total histórico (${S.flights.length} vuelos)</small></div>`;
+    let html = `<b>${list.length}</b> vuelo${list.length === 1 ? '' : 's'} · <b>${hhmm(sum(list))} h</b> de vuelo`;
+    if (S.period) html += ` <small>(${esc(monthLabel(S.period))}; histórico ${hhmm(sum(S.flights))} h en ${S.flights.length} vuelos)</small>`;
     $('totals').innerHTML = html;
     $('flightList').innerHTML = list.length ? list.map((f) => `<div class="card tap" data-act="fl-open" data-id="${f.id}">
         <div><h3>${esc(f.numLabel || '')} · ${fmtDate(f.inicio)}</h3>
@@ -325,6 +325,85 @@
         <div class="chev">Ver detalle y acciones ›</div></div>`).join('') : '<div class="empty">Sin vuelos registrados' + (S.period ? ' en este periodo' : '') + '.</div>';
     $('exportHint').textContent = S.period ? 'Los resúmenes y exportaciones incluyen solo: ' + monthLabel(S.period) + '.' : '';
     renderBackupBanner();
+  }
+
+  /* ---------- horas de vuelo por piloto y aeronave ---------- */
+  function hoursGroups(kind) {
+    const idKey = kind === 'pilot' ? 'pilotId' : 'aircraftId', snapKey = kind === 'pilot' ? 'pilotSnap' : 'aircraftSnap';
+    const map = new Map();
+    (kind === 'pilot' ? S.pilots : S.aircraft).forEach((c) => map.set(c.id, { id: c.id, kind, item: c, eliminado: false, flights: [] }));
+    S.flights.filter((f) => !S.hPeriod || (f.inicio || '').slice(0, 7) === S.hPeriod).forEach((f) => {
+      const k = f[idKey]; if (!k) return;
+      if (!map.has(k)) map.set(k, { id: k, kind, item: f[snapKey] || {}, eliminado: true, flights: [] });
+      map.get(k).flights.push(f);
+    });
+    const out = Array.from(map.values());
+    out.forEach((g) => {
+      g.flights.sort((a, b) => (a.inicio || '').localeCompare(b.inicio || ''));
+      g.count = g.flights.length;
+      g.minutes = g.flights.reduce((s, f) => s + (f.minutos || 0), 0);
+      g.first = g.count ? g.flights[0].inicio : ''; g.last = g.count ? g.flights[g.count - 1].inicio : '';
+      const mm = new Map();
+      g.flights.forEach((f) => { const ym = (f.inicio || '').slice(0, 7); if (!ym) return; const o = mm.get(ym) || { ym, count: 0, min: 0 }; o.count++; o.min += f.minutos || 0; mm.set(ym, o); });
+      g.months = Array.from(mm.values()).sort((a, b) => a.ym.localeCompare(b.ym));
+      g.name = (g.item && g.item.nombre) || '(sin nombre)';
+      g.periodLabel = S.hPeriod ? monthLabel(S.hPeriod) : '';
+    });
+    return out.sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name));
+  }
+
+  function renderHours() {
+    const meses = Array.from(new Set(S.flights.map((f) => (f.inicio || '').slice(0, 7)).filter(Boolean))).sort().reverse();
+    if (S.hPeriod && !meses.includes(S.hPeriod)) S.hPeriod = '';
+    $('hPeriod').innerHTML = '<option value="">Todo el historial</option>' + meses.map((m) => `<option value="${m}">${esc(monthLabel(m))}</option>`).join('');
+    $('hPeriod').value = S.hPeriod;
+    const sec = (title, kind, vacio) => {
+      const gs = hoursGroups(kind);
+      return `<h3 class="sech">${title}</h3>` + (gs.length ? gs.map((g) => `<div class="card tap hrow" data-act="hours-item" data-kind="${kind}" data-id="${esc(g.id)}">
+        <div><h3>${esc(g.name)}${g.eliminado ? ' (' + (kind === 'pilot' ? 'eliminado' : 'eliminada') + ')' : ''}</h3>
+        <div class="meta">${esc(kind === 'pilot' ? (g.item.autorizacion ? 'Autorización ' + g.item.autorizacion : '') : [g.item.marca, g.item.modelo].filter(Boolean).join(' '))}</div></div>
+        <div class="hrs"><b>${hhmm(g.minutes)} h</b><small>${g.count} vuelo${g.count === 1 ? '' : 's'}</small></div></div>`).join('') : `<div class="empty">${vacio}</div>`);
+    };
+    $('h-lists').innerHTML = sec('Pilotos', 'pilot', 'Aún no hay pilotos.') + sec('Aeronaves', 'aircraft', 'Aún no hay aeronaves.');
+  }
+
+  function hoursDetail(kind, id) {
+    const g = hoursGroups(kind).find((x) => x.id === id);
+    if (!g) { renderHours(); show('horas'); return; }
+    S.hSel = { kind, id };
+    $('hd-title').textContent = g.name + (g.eliminado ? (kind === 'pilot' ? ' (eliminado)' : ' (eliminada)') : '');
+    $('hd-sub').textContent = (kind === 'pilot' ? 'Piloto' : 'Aeronave') + ' · ' + (g.periodLabel || 'Todo el historial');
+    const st = (v, l) => `<div class="stat"><b>${esc(v)}</b><small>${esc(l)}</small></div>`;
+    $('hd-stats').innerHTML = st(g.count, 'Vuelos') + st(hhmm(g.minutes) + ' h', 'Horas totales') + st(g.count ? fmtDate(g.first) : '-', 'Primer vuelo') + st(g.count ? fmtDate(g.last) : '-', 'Último vuelo');
+    $('hd-months').innerHTML = g.months.length
+      ? `<table class="mtab"><thead><tr><th>Mes</th><th>Vuelos</th><th>Horas</th></tr></thead><tbody>${g.months.map((m) => `<tr><td>${esc(monthLabel(m.ym))}</td><td>${m.count}</td><td>${hhmm(m.min)} h</td></tr>`).join('')}</tbody><tfoot><tr><td>Total</td><td>${g.count}</td><td>${hhmm(g.minutes)} h</td></tr></tfoot></table>`
+      : '<div class="empty">Sin vuelos en este periodo.</div>';
+    $('hd-flights').innerHTML = g.flights.length ? g.flights.slice().reverse().map((f) => `<div class="card tap" data-act="fl-open" data-id="${f.id}">
+        <div><h3>${esc(f.numLabel || '')} · ${fmtDate(f.inicio)}</h3>
+        <div class="meta">${esc((f.inicio || '').slice(11, 16))} – ${esc((f.fin || '').slice(11, 16))} · <b>${hhmm(f.minutos)} h</b> · ${esc(f.sitio || f.objetivo || 'Sin lugar')}<br>${esc(kind === 'pilot' ? (f.aircraftSnap || {}).nombre : (f.pilotSnap || {}).nombre)}</div></div></div>`).join('') : '<div class="empty">Sin vuelos en este periodo.</div>';
+    $('hd-share').classList.toggle('hidden', !(navigator.canShare && navigator.share));
+    show('horasdet');
+  }
+
+  function hoursPdfFile() {
+    if (!S.hSel) return null;
+    const g = hoursGroups(S.hSel.kind).find((x) => x.id === S.hSel.id);
+    if (!g) return null;
+    return { doc: PDF.hoursDoc(g), name: 'Horas_vuelo_' + safeName(g.name) + periodTag2() + '_' + todayStr() + '.pdf' };
+  }
+  const periodTag2 = () => (S.hPeriod ? '_' + S.hPeriod : '');
+  function hoursPdf(share) {
+    try {
+      const r = hoursPdfFile(); if (!r) return;
+      if (share) shareDoc(r.doc, r.name); else download(r.doc.output('blob'), r.name, 'application/pdf');
+    } catch (e) { console.error(e); toast('No se pudo generar el PDF: ' + e.message, 6000); }
+  }
+  async function shareDoc(doc, name) {
+    try {
+      const file = new File([doc.output('blob')], name, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: name });
+      else download(doc.output('blob'), name, 'application/pdf');
+    } catch (e) { if (e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message, 5000); }
   }
 
   function renderBackupBanner() {
@@ -664,6 +743,12 @@
     switch (b.dataset.act) {
       case 'flight-back': if (S.flight && S.flight.id) openDetail(S.flight.id); else goTab('vuelos'); break;
       case 'detail-back': goTab('vuelos'); break;
+      case 'hours-open': renderHours(); show('horas'); break;
+      case 'hours-home': goTab('vuelos'); break;
+      case 'hours-back': renderHours(); show('horas'); break;
+      case 'hours-item': hoursDetail(b.dataset.kind, b.dataset.id); break;
+      case 'hours-pdf': hoursPdf(false); break;
+      case 'hours-share': hoursPdf(true); break;
       case 'fl-open': openDetail(id); break;
       case 'fl-edit': openFlight(id); break;
       case 'fl-dup': openFlight(null, { template: cur() }); break;
@@ -696,6 +781,7 @@
   $('btnSaveAircraft').onclick = saveAircraft;
   $('sigPilotClear').onclick = () => S.sigPilot.clear();
   $('btnSaveFlight').onclick = async () => { const f = await saveFlight(); if (f) { toast('Vuelo guardado (' + f.numLabel + ').'); openDetail(f.id); } };
+  $('hPeriod').onchange = (e) => { S.hPeriod = e.target.value; renderHours(); };
   $('periodFilter').onchange = (e) => { S.period = e.target.value; renderFlights(); };
   $('btnGeoAll').onclick = exportGeoAll;
   document.querySelectorAll('[data-sug]').forEach((b) => b.addEventListener('click', () => {

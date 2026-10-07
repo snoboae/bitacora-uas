@@ -130,3 +130,18 @@ main { max-width: 860px; margin: 0 auto; padding: 12px 16px 24px; }
 
 .chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); margin: 8px 0 12px; }
 .chk input { margin-top: 2px; flex: none; }
+
+/* horas por piloto y aeronave */
+.totline { margin: 10px 2px; font-size: 15px; }
+.totline small { color: var(--muted); }
+.btn.wide { width: 100%; justify-content: center; margin-bottom: 12px; }
+.sech { margin: 18px 2px 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.card.hrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.hrs { text-align: right; flex: none; }
+.hrs b { display: block; font-size: 17px; }
+.hrs small { color: var(--muted); font-size: 12px; }
+.mtab { width: 100%; border-collapse: collapse; font-size: 14px; }
+.mtab th, .mtab td { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: left; }
+.mtab th:not(:first-child), .mtab td:not(:first-child) { text-align: right; }
+.mtab tfoot td { font-weight: 700; border-bottom: 0; }
+.panel .card h3 { margin: 0; font-size: 16px; color: inherit; font-weight: 700; }

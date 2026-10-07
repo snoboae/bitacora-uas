@@ -26,7 +26,8 @@
       <button class="btn primary" id="btnNewFlight">+ Nuevo vuelo</button>
       <select id="periodFilter" class="filter" aria-label="Periodo"></select>
     </div>
-    <div id="totals" class="statgrid"></div>
+    <p id="totals" class="totline"></p>
+    <button class="btn wide" data-act="hours-open">Horas de vuelo por piloto y aeronave &rsaquo;</button>
     <div id="flightList" class="cards"></div>
     <div class="row wrap pad">
       <button class="btn" id="btnSummaryPdf">Resumen en PDF</button>
@@ -34,6 +35,44 @@
       <button class="btn" id="btnGeoAll">Exportar para SIG (GeoJSON)</button>
     </div>
     <p class="hint" id="exportHint"></p>
+  </section>
+
+  <!-- ============ HORAS POR PILOTO Y AERONAVE ============ -->
+  <section id="v-horas" class="view hidden">
+    <div class="bar wrap">
+      <button class="btn" data-act="hours-home">&larr; Bitácora</button>
+      <select id="hPeriod" class="filter" aria-label="Periodo"></select>
+    </div>
+    <p class="hint">Toca un piloto o una aeronave para ver su detalle y descargar su constancia de horas en PDF.</p>
+    <div id="h-lists"></div>
+  </section>
+
+  <section id="v-horasdet" class="view hidden">
+    <div class="bar sticky">
+      <button class="btn" data-act="hours-back">&larr; Horas de vuelo</button>
+      <button class="btn primary" data-act="hours-pdf">Descargar PDF</button>
+    </div>
+    <div class="panel">
+      <h2 id="hd-title"></h2>
+      <p class="hint" id="hd-sub"></p>
+      <div id="hd-stats" class="statgrid"></div>
+    </div>
+    <div class="panel">
+      <h2>Horas por mes</h2>
+      <div id="hd-months"></div>
+    </div>
+    <div class="panel">
+      <h2>Vuelos</h2>
+      <div id="hd-flights" class="cards"></div>
+    </div>
+    <div class="panel">
+      <h2>Constancia de horas</h2>
+      <div class="actgrid">
+        <button class="btn" data-act="hours-pdf">Descargar PDF</button>
+        <button class="btn" data-act="hours-share" id="hd-share">Compartir PDF</button>
+      </div>
+      <p class="hint">El PDF resume las horas y vuelos del periodo elegido. Sirve para acreditar experiencia.</p>
+    </div>
   </section>
 
   <!-- ============ DETALLE DE UN VUELO ============ -->

@@ -195,6 +195,102 @@ const PDF = (() => {
     return doc;
   }
 
+  /* ---------- Constancia de horas de vuelo (por piloto o por aeronave) ---------- */
+  function monthName(ym) {
+    const [y, m] = ym.split('-').map(Number);
+    const t = new Date(y, m - 1, 1).toLocaleDateString('es-EC', { month: 'long', year: 'numeric' });
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function hoursDoc(h) {
+    const isPilot = h.kind === 'pilot';
+    const doc = newDoc('portrait');
+    header(doc, isPilot ? 'HORAS DE VUELO DEL PILOTO UAS' : 'HORAS DE VUELO DE LA AERONAVE',
+      'Resumen de horas registradas en la bitácora de vuelo' + (h.periodLabel ? ' - ' + h.periodLabel : ''));
+    const ctx = { doc, y: 30 };
+    const it = h.item || {};
+
+    section(ctx, isPilot ? '1. Datos del piloto' : '1. Datos de la aeronave');
+    if (isPilot) {
+      grid(ctx, [
+        { l: 'Nombre completo', v: it.nombre, span: 2 },
+        { l: 'Cédula', v: it.cedula },
+        { l: 'Autorización No.', v: it.autorizacion },
+        { l: 'Fecha de otorgamiento', v: fmtDate(it.otorgamiento) },
+        { l: 'Fecha de expiración', v: fmtDate(it.expiracion) }
+      ], 4);
+    } else {
+      grid(ctx, [
+        { l: 'Nombre', v: it.nombre, span: 2 },
+        { l: 'Marca', v: it.marca },
+        { l: 'Modelo', v: it.modelo },
+        { l: 'Nro. de serie', v: it.serie, span: 2 }
+      ], 4);
+    }
+
+    section(ctx, '2. Resumen');
+    grid(ctx, [
+      { l: 'Periodo', v: h.periodLabel || 'Todo el historial' },
+      { l: 'Vuelos registrados', v: String(h.count) },
+      { l: 'Horas totales de vuelo', v: hhmm(h.minutes) + ' h' },
+      { l: 'Primer / último vuelo', v: h.count ? fmtDate(h.first) + ' - ' + fmtDate(h.last) : '-' }
+    ], 4);
+
+    const table = (cols, rows, total) => {
+      const head = () => {
+        doc.setFillColor(...TEAL); doc.rect(M, ctx.y, CW, 6, 'F');
+        doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+        let x = M; cols.forEach((k) => { doc.text(k.t, x + 1.5, ctx.y + 4.1); x += k.w; });
+        doc.setTextColor(0); ctx.y += 6;
+      };
+      ensure(ctx, 16); head();
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.3);
+      const cut = (t, w) => { const l = doc.splitTextToSize(String(t == null || t === '' ? '-' : t), w - 3); return l[0] + (l.length > 1 ? '...' : ''); };
+      rows.forEach((cells, i) => {
+        if (ensure(ctx, 6)) head();
+        if (i % 2) { doc.setFillColor(246, 248, 249); doc.rect(M, ctx.y, CW, 5.6, 'F'); }
+        let x = M; cells.forEach((t, k) => { doc.text(cut(t, cols[k].w), x + 1.5, ctx.y + 3.9); x += cols[k].w; });
+        ctx.y += 5.6;
+      });
+      if (total) {
+        ensure(ctx, 8);
+        doc.setDrawColor(...TEAL); doc.setLineWidth(0.4); doc.line(M, ctx.y, M + CW, ctx.y);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
+        doc.text('TOTAL', M + 1.5, ctx.y + 5);
+        let x = M; cols.forEach((k, i) => { if (total[i] != null) doc.text(String(total[i]), x + 1.5, ctx.y + 5); x += k.w; });
+        ctx.y += 9;
+      }
+    };
+
+    section(ctx, '3. Horas por mes');
+    table([{ t: 'Mes', w: 80 }, { t: 'Vuelos', w: 40 }, { t: 'Horas', w: 62 }],
+      h.months.map((m) => [monthName(m.ym), String(m.count), hhmm(m.min) + ' h']),
+      [null, String(h.count), hhmm(h.minutes) + ' h']);
+
+    section(ctx, '4. Detalle de vuelos');
+    table([{ t: 'Registro', w: 19 }, { t: 'Inicio', w: 30 }, { t: 'Lugar / proyecto', w: 56 }, { t: isPilot ? 'Aeronave' : 'Piloto', w: 61 }, { t: 'Total', w: 16 }],
+      h.flights.map((f) => [f.numLabel, fmtDT(f.inicio), f.sitio || f.objetivo, isPilot ? (f.aircraftSnap || {}).nombre : (f.pilotSnap || {}).nombre, hhmm(f.minutos)]),
+      [null, null, null, null, hhmm(h.minutes)]);
+
+    ensure(ctx, 14);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...GRAY);
+    doc.text(doc.splitTextToSize('Horas calculadas a partir de los registros guardados en la bitácora de vuelo UAS. Generado: ' + new Date().toLocaleString('es-EC'), CW), M, ctx.y + 2);
+    doc.setTextColor(0); ctx.y += 10;
+
+    if (isPilot && it.firma) {
+      ensure(ctx, 46);
+      section(ctx, 'Firma del piloto');
+      const top = ctx.y;
+      doc.setDrawColor(...LINE); doc.setLineWidth(0.2); doc.rect(M, top, 90, 26);
+      try { doc.addImage(it.firma, 'PNG', M + 2, top + 1, 86, 24); } catch (e) { /* firma inválida */ }
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.text(it.nombre || '', M, top + 31);
+      doc.setFontSize(7.5); doc.setTextColor(...GRAY); doc.text('Piloto a distancia' + (it.autorizacion ? ' - Autorización ' + it.autorizacion : ''), M, top + 35);
+      doc.setTextColor(0);
+    }
+
+    footers(doc, (isPilot ? 'Horas de vuelo - ' : 'Horas de vuelo aeronave - ') + (it.nombre || ''));
+    return doc;
+  }
+
   /* ---------- Resumen de toda la bitácora ---------- */
   function summaryDoc(flights, periodLabel) {
     const doc = newDoc('portrait');
@@ -234,5 +330,5 @@ const PDF = (() => {
     return doc;
   }
 
-  return { flightDoc, summaryDoc, hhmm, fmtDate, fmtDT };
+  return { flightDoc, summaryDoc, hoursDoc, hhmm, fmtDate, fmtDT };
 })();
